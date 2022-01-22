@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
+	"net"
 )
 
 /** Config struct **/
@@ -72,12 +73,14 @@ func main() {
 			Seed: seed,
 		})
 
-	conn, err := net.Dial("udp", config.NimServerAddress)
-	if err != nil {
-		return
-	}
+	nimServerResolved, err := net.ResolveUDPAddr("udp", config.NimServerAddress)
+	if err != nil { return }
+	nimServerAddr := nimServerResolved.String()
 	
-	
+	// Might need to retry if dial cant connect?
+	conn, err := net.Dial("udp", nimServerAddr)
+	if err != nil { return }
+	defer conn.Close()
 }
 
 func ReadConfig(filepath string) *ClientConfig {
