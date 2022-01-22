@@ -75,10 +75,11 @@ func main() {
 
 	nimServerResolved, err := net.ResolveUDPAddr("udp", config.NimServerAddress)
 	if err != nil { return }
-	nimServerAddr := nimServerResolved.String()
+	nimClientResolved, err := net.ResolveUDPAddr("udp", config.ClientAddress)
+	if err != nil { return }
 	
 	// Might need to retry if dial cant connect?
-	conn, err := net.Dial("udp", nimServerAddr)
+	conn, err := net.DialUDP("udp", nimClientResolved, nimServerResolved)
 	if err != nil { return }
 	defer conn.Close()
 }
