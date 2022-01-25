@@ -87,7 +87,7 @@ func main() {
 	CheckErr(err, "Cannot dial connection")
 	defer conn.Close()
 
-	messageOut := StateMoveMessage{nil, -1, 32}
+	messageOut := StateMoveMessage{nil, -1, seed}
 	gameDone := false
 	for gameDone == false {
 		SendMessage(messageOut, conn)
