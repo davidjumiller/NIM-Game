@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"net"
+	"bytes"
 )
 
 /** Config struct **/
@@ -87,30 +88,54 @@ func main() {
 	defer conn.Close()
 
 	messageOut := StateMoveMessage{nil, -1, 32}
+	gameDone := false
+	for gameDone == false {
+		SendMessage(messageOut, conn)
+		trace.RecordAction(
+			ClientMove{
+				GameState: messageOut.GameState,
+				MoveRow: messageOut.MoveRow,
+				MoveCount: messageOut.MoveCount,
+			})
 
-	// Encode
-	enc := gob.NewEncoder(conn)
-	err = enc.Encode(StateMoveMessage{nil, -1, 32})
-	CheckErr(err, "Error with encoding/sending message")
-	trace.RecordAction(
-		ClientMove{
-			GameState: messageOut.GameState,
-			MoveRow: messageOut.MoveRow,
-			MoveCount: messageOut.MoveCount,
-		})
+		messageIn := ReceiveMessage(conn)
+		trace.RecordAction(
+			ServerMoveReceive{
+				GameState: messageIn.GameState,
+				MoveRow: messageIn.MoveRow,
+				MoveCount: messageIn.MoveCount,
+			})
 
-	// Decode
-	messageIn := new(StateMoveMessage)
+		messageOut = messageIn
+		for i := 0; i < len(messageOut.GameState); i++{
+			if (messageOut.GameState[i] > 0) {
+				messageOut.GameState[i]--
+				messageOut.MoveRow = int8(i)
+				messageOut.MoveCount = 1
+				i = len(messageOut.GameState)
+			} else if (i == len(messageOut.GameState)-1) {
+				gameDone = true
+			}
+		}
+	}
+	trace.RecordAction(GameComplete{"server"})
+}
+
+func SendMessage(msg StateMoveMessage, conn net.Conn) {
+	var oBuf bytes.Buffer
+	enc := gob.NewEncoder(&oBuf)
+	err := enc.Encode(msg)
+	CheckErr(err, "Error with encoding message")
+	_, err = conn.Write(oBuf.Bytes())
+	CheckErr(err, "Error with sending message")
+}
+
+func ReceiveMessage(conn net.Conn) StateMoveMessage{
+	var messageIn StateMoveMessage
 	dec := gob.NewDecoder(conn)
-	err = dec.Decode(messageIn)
+	err := dec.Decode(&messageIn)
 	CheckErr(err, "Error with decoding/receiving message")
-	trace.RecordAction(
-		ServerMoveReceive{
-			GameState: messageIn.GameState,
-			MoveRow: messageIn.MoveRow,
-			MoveCount: messageIn.MoveCount,
-		})
-
+	return messageIn
 }
 
 func ReadConfig(filepath string) *ClientConfig {
