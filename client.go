@@ -76,33 +76,34 @@ func main() {
 
 	// Address resolution
 	nimServerResolved, err := net.ResolveUDPAddr("udp", config.NimServerAddress)
-	if err != nil { return }
-	// nimClientResolved, err := net.ResolveUDPAddr("udp", config.ClientAddress)
-	// if err != nil { return }
+	CheckErr(err, "Cannot resolve server address")
+	nimClientResolved, err := net.ResolveUDPAddr("udp", config.ClientAddress)
+	CheckErr(err, "Cannot resolve client address")
 	
 	// Create connection to nim server
 	// Might need to retry if dial cant connect?
-	conn, err := net.DialUDP("udp", nil, nimServerResolved)
-	if err != nil { return }
+	conn, err := net.DialUDP("udp", nimClientResolved, nimServerResolved)
+	CheckErr(err, "Cannot dial connection")
 	defer conn.Close()
 
 	messageOut := StateMoveMessage{nil, -1, 32}
 
 	// Encode
 	enc := gob.NewEncoder(conn)
-	if err := enc.Encode(StateMoveMessage{nil, -1, 32}); err != nil { return }
+	err = enc.Encode(StateMoveMessage{nil, -1, 32})
+	CheckErr(err, "Error with encoding/sending message")
 	trace.RecordAction(
 		ClientMove{
 			GameState: messageOut.GameState,
 			MoveRow: messageOut.MoveRow,
 			MoveCount: messageOut.MoveCount,
 		})
-	if err != nil { return }
 
 	// Decode
 	messageIn := new(StateMoveMessage)
 	dec := gob.NewDecoder(conn)
-	if err := dec.Decode(messageIn); err != nil { return }
+	err = dec.Decode(messageIn)
+	CheckErr(err, "Error with decoding/receiving message")
 	trace.RecordAction(
 		ServerMoveReceive{
 			GameState: messageIn.GameState,
