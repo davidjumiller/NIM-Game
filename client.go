@@ -89,7 +89,16 @@ func main() {
 
 	messageOut := StateMoveMessage{nil, -1, seed}
 	gameDone := false
+	var winner string
 	for gameDone == false {
+		for i := 0; i < len(messageOut.GameState); i++{
+			if (messageOut.GameState[i] > 0) {
+				break
+			} else if (i >= len(messageOut.GameState)-1) {
+				gameDone = true
+				winner = "server"
+			}
+		}
 		SendMessage(messageOut, conn)
 		trace.RecordAction(
 			ClientMove{
@@ -113,12 +122,13 @@ func main() {
 				messageOut.MoveRow = int8(i)
 				messageOut.MoveCount = 1
 				i = len(messageOut.GameState)
-			} else if (i == len(messageOut.GameState)-1) {
+			} else if (i >= len(messageOut.GameState)-1) {
 				gameDone = true
+				winner = "client"
 			}
 		}
 	}
-	trace.RecordAction(GameComplete{"server"})
+	trace.RecordAction(GameComplete{winner})
 }
 
 func SendMessage(msg StateMoveMessage, conn net.Conn) {
