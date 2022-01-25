@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"encoding/gob"
 	"fmt"
 	"github.com/DistributedClocks/tracing"
 	"io/ioutil"
@@ -73,15 +74,42 @@ func main() {
 			Seed: seed,
 		})
 
+	// Address resolution
 	nimServerResolved, err := net.ResolveUDPAddr("udp", config.NimServerAddress)
 	if err != nil { return }
-	nimClientResolved, err := net.ResolveUDPAddr("udp", config.ClientAddress)
-	if err != nil { return }
+	// nimClientResolved, err := net.ResolveUDPAddr("udp", config.ClientAddress)
+	// if err != nil { return }
 	
+	// Create connection to nim server
 	// Might need to retry if dial cant connect?
-	conn, err := net.DialUDP("udp", nimClientResolved, nimServerResolved)
+	conn, err := net.DialUDP("udp", nil, nimServerResolved)
 	if err != nil { return }
 	defer conn.Close()
+
+	messageOut := StateMoveMessage{nil, -1, 32}
+
+	// Encode
+	enc := gob.NewEncoder(conn)
+	if err := enc.Encode(StateMoveMessage{nil, -1, 32}); err != nil { return }
+	trace.RecordAction(
+		ClientMove{
+			GameState: messageOut.GameState,
+			MoveRow: messageOut.MoveRow,
+			MoveCount: messageOut.MoveCount,
+		})
+	if err != nil { return }
+
+	// Decode
+	messageIn := new(StateMoveMessage)
+	dec := gob.NewDecoder(conn)
+	if err := dec.Decode(messageIn); err != nil { return }
+	trace.RecordAction(
+		ServerMoveReceive{
+			GameState: messageIn.GameState,
+			MoveRow: messageIn.MoveRow,
+			MoveCount: messageIn.MoveCount,
+		})
+
 }
 
 func ReadConfig(filepath string) *ClientConfig {
