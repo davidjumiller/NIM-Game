@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"net"
 	"bytes"
+	"reflect"
 )
 
 /** Config struct **/
@@ -99,33 +100,25 @@ func main() {
 				winner = "server"
 			}
 		}
-		SendMessage(messageOut, conn)
-		trace.RecordAction(
-			ClientMove{
-				GameState: messageOut.GameState,
-				MoveRow: messageOut.MoveRow,
-				MoveCount: messageOut.MoveCount,
-			})
+		if gameDone == false {
+			SendMessage(messageOut, conn)
+			trace.RecordAction(
+				ClientMove{
+					GameState: messageOut.GameState,
+					MoveRow: messageOut.MoveRow,
+					MoveCount: messageOut.MoveCount,
+				})
 
-		messageIn := ReceiveMessage(conn)
-		trace.RecordAction(
-			ServerMoveReceive{
-				GameState: messageIn.GameState,
-				MoveRow: messageIn.MoveRow,
-				MoveCount: messageIn.MoveCount,
-			})
+			messageIn := ReceiveMessage(conn)
+			trace.RecordAction(
+				ServerMoveReceive{
+					GameState: messageIn.GameState,
+					MoveRow: messageIn.MoveRow,
+					MoveCount: messageIn.MoveCount,
+				})
 
-		messageOut = messageIn
-		for i := 0; i < len(messageOut.GameState); i++{
-			if (messageOut.GameState[i] > 0) {
-				messageOut.GameState[i]--
-				messageOut.MoveRow = int8(i)
-				messageOut.MoveCount = 1
-				i = len(messageOut.GameState)
-			} else if (i >= len(messageOut.GameState)-1) {
-				gameDone = true
-				winner = "client"
-			}
+			gameDone = makeMove(&messageOut, messageIn)
+			if gameDone == true { winner = "client" }
 		}
 	}
 	trace.RecordAction(GameComplete{winner})
@@ -146,6 +139,30 @@ func ReceiveMessage(conn net.Conn) StateMoveMessage{
 	err := dec.Decode(&messageIn)
 	CheckErr(err, "Error with decoding/receiving message")
 	return messageIn
+}
+
+func makeMove(messageOut *StateMoveMessage, messageIn StateMoveMessage) bool {
+	// Check if server made proper move based on previous message out by client
+	if (messageIn.MoveRow != -1) {
+		messageTemp := *messageOut
+		messageTemp.GameState[messageIn.MoveRow] -= uint8(messageIn.MoveCount)
+		if !reflect.DeepEqual(messageTemp.GameState, messageOut.GameState) {
+			return false
+		}
+	}
+	// Client move "logic"
+	*messageOut = messageIn 
+	for i := 0; i < len(messageOut.GameState); i++{
+		if (messageOut.GameState[i] > 0) {
+			messageOut.GameState[i]--
+			messageOut.MoveRow = int8(i)
+			messageOut.MoveCount = 1
+			i = len(messageOut.GameState)
+		} else if (i >= len(messageOut.GameState)-1) {
+			return true
+		}
+	}
+	return false
 }
 
 func ReadConfig(filepath string) *ClientConfig {
