@@ -11,6 +11,7 @@ import (
 	"net"
 	"bytes"
 	"reflect"
+	"time"
 )
 
 /** Config struct **/
@@ -89,6 +90,7 @@ func main() {
 	defer conn.Close()
 
 	messageOut := StateMoveMessage{nil, -1, seed}
+	messageIn := messageOut
 	gameDone := false
 	var winner string
 	for gameDone == false {
@@ -100,22 +102,23 @@ func main() {
 				winner = "server"
 			}
 		}
+		SendMessage(messageOut, conn)
+		trace.RecordAction(
+			ClientMove{
+				GameState: messageOut.GameState,
+				MoveRow: messageOut.MoveRow,
+				MoveCount: messageOut.MoveCount,
+			})
 		if gameDone == false {
-			SendMessage(messageOut, conn)
-			trace.RecordAction(
-				ClientMove{
-					GameState: messageOut.GameState,
-					MoveRow: messageOut.MoveRow,
-					MoveCount: messageOut.MoveCount,
-				})
-
-			messageIn := ReceiveMessage(conn)
-			trace.RecordAction(
-				ServerMoveReceive{
-					GameState: messageIn.GameState,
-					MoveRow: messageIn.MoveRow,
-					MoveCount: messageIn.MoveCount,
-				})
+			messageTemp := ReceiveMessage(&messageIn, conn)
+			if messageTemp.GameState != nil {
+				trace.RecordAction(
+					ServerMoveReceive{
+						GameState: messageTemp.GameState,
+						MoveRow: messageTemp.MoveRow,
+						MoveCount: messageTemp.MoveCount,
+					})
+			}
 
 			gameDone = makeMove(&messageOut, messageIn)
 			if gameDone == true { winner = "client" }
@@ -133,12 +136,15 @@ func SendMessage(msg StateMoveMessage, conn net.Conn) {
 	CheckErr(err, "Error with sending message")
 }
 
-func ReceiveMessage(conn net.Conn) StateMoveMessage{
-	var messageIn StateMoveMessage
+func ReceiveMessage(messageIn *StateMoveMessage, conn net.Conn) StateMoveMessage {
+	var messageTemp StateMoveMessage
+	conn.SetReadDeadline(time.Now().Add(time.Second))
 	dec := gob.NewDecoder(conn)
-	err := dec.Decode(&messageIn)
-	CheckErr(err, "Error with decoding/receiving message")
-	return messageIn
+	err := dec.Decode(&messageTemp)
+	if err == nil {
+		*messageIn = messageTemp
+	}
+	return messageTemp
 }
 
 func makeMove(messageOut *StateMoveMessage, messageIn StateMoveMessage) bool {

@@ -1,6 +1,6 @@
 {
   "ClientAddress": "0.0.0.0:35214",
-  "NimServerAddress": "thetis.students.cs.ubc.ca:41605",
+  "NimServerAddress": "thetis.students.cs.ubc.ca:41616",
   "TracingServerAddress": "127.0.0.1:3520",
   "Secret": "",
   "TracingIdentity": "client"
